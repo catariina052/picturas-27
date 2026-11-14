@@ -194,6 +194,35 @@ function validateFrameExtraction(tools) {
   return null;
 }
 
+// "Effects not available for video: a, b" when the pipeline has image-only
+// effects, or null when every effect works on video.
+function videoToolsError(project) {
+  const bad = unsupportedVideoTools(project);
+  if (bad.length === 0) return null;
+  return `Effects not available for video: ${[...new Set(bad)].join(", ")}`;
+}
+
+// Single place for the rules a pipeline must meet before it is run.
+// Returns null if the pipeline can run, or the message explaining why not.
+// The checks and their order are the ones POST /process applies. The frontend
+// mirrors them in lib/pipeline-validation.ts (to disable Apply and mark the
+// invalid steps), so change both together.
+function validatePipeline(project) {
+  const tools = (project && project.tools) || [];
+  if (tools.length === 0) return "No tools selected";
+
+  const frameError = validateFrameExtraction(tools);
+  if (frameError) return frameError;
+
+  const hasVideos = ((project && project.imgs) || []).some(isVideoMedia);
+  if (hasVideos) return videoToolsError(project);
+
+  if (imageTools(project).length === 0) {
+    return "The pipeline only has video effects and the project has no videos";
+  }
+  return null;
+}
+
 // Newly added effects run before the terminal extractor, regardless of client position.
 function insertPipelineTool(tools, tool) {
   const ordered = [...(tools || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
@@ -213,6 +242,7 @@ module.exports = {
   VIDEO_LIMITS,
   VIDEO_TOOLS,
   VIDEO_ONLY_TOOLS,
+  PER_VIDEO_TOOLS,
   isVideoFile,
   isVideoMedia,
   videoOutputName,
@@ -223,5 +253,7 @@ module.exports = {
   unsupportedVideoTools,
   videoOps,
   validateFrameExtraction,
+  videoToolsError,
+  validatePipeline,
   insertPipelineTool,
 };
