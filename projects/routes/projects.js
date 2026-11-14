@@ -61,7 +61,8 @@ const {
   validateVideo,
   imageTools,
   videoPipeline,
-  unsupportedVideoTools,
+  videoToolsError,
+  validatePipeline,
   videoOps,
   validateFrameExtraction,
   insertPipelineTool,
@@ -1099,12 +1100,8 @@ router.post("/:user/:project/preview/:img", checkSharePermission, requireEditPer
       const previewIsVideo = isVideoMedia(previewImg);
 
       if (previewIsVideo) {
-        const bad = unsupportedVideoTools(project);
-        if (bad.length > 0) {
-          return res
-            .status(400)
-            .jsonp(`Effects not available for video: ${[...new Set(bad)].join(", ")}`);
-        }
+        const videoError = videoToolsError(project);
+        if (videoError) return res.status(400).jsonp(videoError);
       }
 
       // video: the whole pipeline goes in one message to the video worker,
@@ -1538,28 +1535,11 @@ router.post("/:user/:project/process", checkSharePermission, requireEditPermissi
         return;
       }
 
-      if (project.tools.length == 0) {
-        res.status(400).jsonp("No tools selected");
-        return;
-      }
-
-      const pipelineError = validateFrameExtraction(project.tools);
+      
+      const pipelineError = validatePipeline(project);
       if (pipelineError) return res.status(400).jsonp(pipelineError);
-
-      // Video
-      const hasVideos = project.imgs.some(isVideoMedia);
-      if (hasVideos) {
-        const bad = unsupportedVideoTools(project);
-        if (bad.length > 0) {
-          res
-            .status(400)
-            .jsonp(`Effects not available for video: ${[...new Set(bad)].join(", ")}`);
-          return;
-        }
-      } else if (imageTools(project).length === 0) {
-        res.status(400).jsonp("The pipeline only has video effects and the project has no videos");
-        return;
-      }
+      
+      
       // Each effect applied to a video counts as one operation
       const vid_ops = videoOps(project);
 
